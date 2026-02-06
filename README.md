@@ -7,7 +7,7 @@ A Python tool that converts CherryTree SQLite notebooks into fully structured Ob
 > [!WARNING]
 > **Author's note:** Despite having tried Obsidian numerous times, I find it genuinely awful. You cannot sort folders without prefixing names with numbers or maintaining some janky index file or installing community plugins just to get basic tree ordering — something CherryTree handles natively with drag-and-drop. The fact that a "knowledge management" tool ships without deterministic note ordering in the sidebar is bewildering. Holy trash.
 >
-> This converter exists because Obsidian is what people keep recommending, so here's a bridge. If you're converting *to* Obsidian, you've been warned. If you're converting *from* CherryTree because it's abandonware — I feel your pain, and I'm sorry.
+> This converter exists because Obsidian is what people keep recommending, so here's a bridge. If you're converting *to* Obsidian, you've been warned. Don't do it! :)
 
 ---
 
