@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 LOG_FILENAME = "ctb2obsidian.log"
 
@@ -86,6 +86,11 @@ def sanitize_filename(name: str) -> str:
   if len(name) > 100:
     name = name[:100].rstrip(" ._")
   return name
+
+
+def open_readonly(db_path: Path) -> sqlite3.Connection:
+  """Open a SQLite database in read-only mode — any write attempt raises."""
+  return sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
 
 
 # ─── Core Converter ─────────────────────────────────────────────────────────
@@ -156,7 +161,7 @@ class CTBConverter:
       errors.append(f"Input file is not a .ctb file: {self.ctb_path}")
     else:
       try:
-        conn = sqlite3.connect(str(self.ctb_path))
+        conn = open_readonly(self.ctb_path)
         cur = conn.cursor()
         cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {r[0] for r in cur.fetchall()}
@@ -179,7 +184,7 @@ class CTBConverter:
 
   def load_data(self) -> None:
     """Load all data from the CTB database into memory."""
-    self.conn = sqlite3.connect(str(self.ctb_path))
+    self.conn = open_readonly(self.ctb_path)
     self.conn.row_factory = sqlite3.Row
 
     cur = self.conn.cursor()

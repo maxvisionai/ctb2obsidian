@@ -134,7 +134,7 @@ cherrytree_id: 2
 6. Writes `.md` files and saves image/file attachments
 7. Creates `.obsidian/app.json` so the folder is recognized as a vault
 
-**Your original `.ctb` file is never modified.** The converter only reads from the database; it never writes to it.
+**Your original `.ctb` file is never modified.** The database is opened in SQLite's read-only mode, so a write is impossible, not just avoided.
 
 ## Limitations
 
@@ -144,6 +144,10 @@ cherrytree_id: 2
 - **Nested formatting** (e.g., bold + italic on the same span) produces valid but potentially ugly Markdown like `***text***`.
 
 ## Changelog
+
+### 1.0.2
+
+- The `.ctb` is now opened in SQLite read-only mode (`?mode=ro`), so the converter cannot write to it under any circumstances.
 
 ### 1.0.1
 
