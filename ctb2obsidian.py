@@ -15,6 +15,8 @@ with Markdown files, embedded images, code blocks, tables, and wikilinks.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import logging
 import os
@@ -265,47 +267,55 @@ class CTBConverter:
         segments.append((char_offset, char_offset + len(text), text, dict(elem.attrib)))
         char_offset += len(text)
 
-    # Collect embedded objects keyed by offset
-    embeds: dict[int, str] = {}
+    # Collect embedded objects as (db offset, markdown)
+    objects: list[tuple[int, str]] = []
 
     for cb in self.codeboxes.get(node_id, []):
       lang = cb.get("syntax", "") or ""
       if lang in ("plain-text", "custom-colors"):
         lang = ""
-      embeds[cb["offset"]] = f'\n\n```{lang}\n{cb.get("txt", "")}\n```\n\n'
+      objects.append((cb["offset"], f'\n\n```{lang}\n{cb.get("txt", "")}\n```\n\n'))
       self.stats.codeboxes += 1
 
     for grid in self.grids.get(node_id, []):
-      embeds[grid["offset"]] = self._grid_to_markdown(grid.get("txt", ""))
+      objects.append((grid["offset"], self._grid_to_markdown(grid.get("txt", ""))))
       self.stats.tables += 1
 
     for img in self.images.get(node_id, []):
-      embeds[img["offset"]] = self._save_image(img, node_id)
+      objects.append((img["offset"], self._save_image(img, node_id)))
 
-    # Merge text and embeds by offset
+    # CherryTree's offsets are positions in the editor buffer, where every
+    # embedded object occupies one character. The k-th object (in offset
+    # order) therefore sits at text position offset - k. Several objects can
+    # share a text position, so keep them as an ordered list.
+    objects.sort(key=lambda o: o[0])
+    embeds: list[tuple[int, str]] = [
+      (offset - k, md) for k, (offset, md) in enumerate(objects)
+    ]
+
+    # Merge text and embeds by text position
     parts: list[str] = []
-    sorted_eo = sorted(embeds.keys())
     ei = 0
 
     for seg_start, seg_end, text, attribs in segments:
-      while ei < len(sorted_eo) and sorted_eo[ei] <= seg_start:
-        parts.append(embeds[sorted_eo[ei]])
+      while ei < len(embeds) and embeds[ei][0] <= seg_start:
+        parts.append(embeds[ei][1])
         ei += 1
-      while ei < len(sorted_eo) and sorted_eo[ei] < seg_end:
-        eo = sorted_eo[ei]
+      while ei < len(embeds) and embeds[ei][0] < seg_end:
+        eo = embeds[ei][0]
         split_pos = eo - seg_start
         before = text[:split_pos]
         if before:
           parts.append(self._format_text(before, attribs))
-        parts.append(embeds[eo])
+        parts.append(embeds[ei][1])
         text = text[split_pos:]
         seg_start = eo
         ei += 1
       if text:
         parts.append(self._format_text(text, attribs))
 
-    while ei < len(sorted_eo):
-      parts.append(embeds[sorted_eo[ei]])
+    while ei < len(embeds):
+      parts.append(embeds[ei][1])
       ei += 1
 
     md = "".join(parts)
@@ -343,7 +353,12 @@ class CTBConverter:
         except ValueError:
           pass
       if link.startswith(("file ", "fold ")):
-        return f"[{text.strip()}]({link[5:]})"
+        # CherryTree stores local file/folder paths base64-encoded
+        try:
+          target = base64.b64decode(link[5:], validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError):
+          target = link[5:]
+        return f"[{text.strip()}](<file://{target}>)"
       return f"[{text.strip()}]({link})"
 
     result = text
@@ -404,6 +419,9 @@ class CTBConverter:
 
     if not rows:
       return ""
+
+    # CherryTree stores the header row last
+    rows.insert(0, rows.pop())
 
     max_cols = max(len(r) for r in rows)
     for r in rows:

@@ -77,18 +77,20 @@ Embedded tables within rich-text nodes.
 | `col_min` | INTEGER | Minimum column width |
 | `col_max` | INTEGER | Maximum column width |
 
-Grid XML format:
+Grid XML format. **The header row is stored last**: CherryTree's own serializer
+(`src/ct/ct_table.cc`, "put header at the end") writes the data rows first and the header row
+after them, so a converter must move the last `<row>` to the top:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <table col_widths="0,0">
   <row>
-    <cell>Header 1</cell>
-    <cell>Header 2</cell>
-  </row>
-  <row>
     <cell>Data 1</cell>
     <cell>Data 2</cell>
+  </row>
+  <row>
+    <cell>Header 1</cell>
+    <cell>Header 2</cell>
   </row>
 </table>
 ```
@@ -162,18 +164,28 @@ The `link` attribute uses a prefix to indicate the link type:
 |--------|---------|---------|
 | `webs ` | `webs https://example.com` | Web URL |
 | `node ` | `node 42` | Internal link to node_id 42 |
-| `file ` | `file /path/to/file` | Link to local file |
-| `fold ` | `fold /path/to/folder` | Link to local folder |
+| `file ` | `file L2hvbWUvdXNlci9hLnR4dA==` | Link to local file — path is **base64-encoded** (`/home/user/a.txt`) |
+| `fold ` | `fold L2hvbWUvdXNlcg==` | Link to local folder — path is **base64-encoded** (`/home/user`) |
 
 ## Character Offset System
 
-CherryTree uses a **character offset** system to position embedded objects (codeboxes, tables, images) within the text flow. The offset represents the position in the **concatenated plain text** of all `<rich_text>` elements where the object should be inserted.
+CherryTree positions embedded objects (codeboxes, tables, images, anchors, file attachments) with an
+`offset` column. The offset is a position in the **editor buffer**, and in that buffer **every embedded
+object itself occupies one character**. The offset therefore counts the plain text of all `<rich_text>`
+elements *plus one for each object that comes before it*.
 
-For example, if a node's text content is "Hello World" (11 characters) and an image has `offset=5`, the image appears between "Hello" and " World".
+To place objects in the plain text:
 
-When converting, you must:
-1. Parse all `<rich_text>` elements and track cumulative character positions
-2. Query the `codebox`, `grid`, and `image` tables for the node
-3. Insert each embedded object at its character offset position
+1. Concatenate the text of all `<rich_text>` elements. Count in Unicode code points, not bytes or UTF-16 units.
+2. Collect all objects of the node from the `codebox`, `grid` and `image` tables and sort them by `offset`.
+3. The k-th object (0-based, in that order) belongs at text position **`offset - k`**.
+4. Several objects can end up at the same text position (e.g. two images in a row), so keep them as an
+   ordered list, not a map keyed by position.
 
-This is the trickiest part of any CherryTree converter — many tools get this wrong and place images/codeboxes at the end of the document instead of inline.
+Example: the text is "Hello World", with image A at `offset=5` and image B at `offset=7`. In the buffer,
+A takes buffer position 5, which pushes the space to 6 and "W" to 7, so B sits right before "W":
+A at text position 5 (5 − 0), B at text position 6 (7 − 1) → `Hello` A ` ` B `World`.
+
+Using `offset` directly (without subtracting k) pushes every object after the first one too far right,
+and objects near the end of a note fall off the end of the text. On a real 843-node notebook,
+30 of 355 objects landed past the end of their note that way.
