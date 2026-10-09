@@ -15,10 +15,10 @@ A Python tool that converts CherryTree SQLite notebooks into fully structured Ob
 
 - **Full hierarchy** → Folder structure mirrors CherryTree's tree
 - **Rich text** → Markdown (bold, italic, strikethrough, monospace, headings h1–h6)
-- **Links** → `[text](url)` for web, `[[note name]]` for internal node links
+- **Links** → `[text](url)` for web, `[[note name]]` for internal node links, `file://` for local files and folders
 - **Codeboxes** → Fenced code blocks with syntax language (```python, ```sh, etc.)
-- **Tables** → Proper Markdown tables
-- **Embedded images** → Saved as PNGs in `attachments/` with `![]()` references
+- **Tables** → Proper Markdown tables, header row on top
+- **Embedded images** → Saved as PNGs in `attachments/` with `![]()` references, placed exactly where they sat in the note
 - **File attachments** → Saved with original filenames
 - **YAML frontmatter** → `created`, `modified`, `tags`, `cherrytree_id`
 - **Child note links** → Parent notes list children as `[[wikilinks]]`
@@ -130,11 +130,11 @@ cherrytree_id: 2
 2. Loads all nodes, codeboxes, tables, and images into memory
 3. Builds a folder hierarchy from the `children` table
 4. For each node, parses the rich-text XML and converts formatting to Markdown
-5. Embeds (images, codeboxes, tables) are inserted at their character offsets
+5. Embeds (images, codeboxes, tables) are inserted at their exact positions in the text. CherryTree counts every earlier embed as one character, so the k-th embed goes at `offset − k` — see [CTB_FORMAT.md](CTB_FORMAT.md#character-offset-system)
 6. Writes `.md` files and saves image/file attachments
 7. Creates `.obsidian/app.json` so the folder is recognized as a vault
 
-**Your original `.ctb` file is never modified.** The database is opened read-only.
+**Your original `.ctb` file is never modified.** The converter only reads from the database; it never writes to it.
 
 ## Limitations
 
@@ -142,6 +142,19 @@ cherrytree_id: 2
 - **Rich text colors** are not preserved (Markdown has no native color support). CherryTree's `foreground`/`background` attributes are silently dropped.
 - **Node ordering in Obsidian** — CherryTree preserves explicit ordering via sequence numbers. Obsidian... does not believe in ordering things. Godspeed.
 - **Nested formatting** (e.g., bold + italic on the same span) produces valid but potentially ugly Markdown like `***text***`.
+
+## Changelog
+
+### 1.0.1
+
+- **Fixed: embeds in the wrong place.** Images, code blocks and tables after the first one in a note drifted further right with each embed, and ones near the end fell off the end of the note entirely. CherryTree counts each embed as one character in its offsets; the converter now accounts for that. On an 843-node notebook this moved 36 of 250 images to their correct spot.
+- **Fixed: table headers at the bottom.** CherryTree stores a table's header row last; it's now moved to the top (9 of 22 tables in the same notebook were affected).
+- **Fixed: local file and folder links.** CherryTree base64-encodes these paths; they were written out encoded and unusable. They now become `file://` links.
+- `CTB_FORMAT.md` corrected on all three points.
+
+### 1.0.0
+
+- Initial release.
 
 ## See Also
 

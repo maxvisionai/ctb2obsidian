@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 LOG_FILENAME = "ctb2obsidian.log"
 
